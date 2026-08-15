@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>深き夜・標的判定ツール</title>
+<style>
+  :root{
+    --bg:#101216;
+    --panel:#191c22;
+    --panel2:#20242c;
+    --line:#343a46;
+    --text:#f1f3f5;
+    --muted:#aab1bd;
+    --accent:#d8b36a;
+    --accentText:#17130b;
+    --selected:#66501f;
+    --danger:#8d4b4b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+  body{min-height:100vh}
+  .wrap{width:min(980px,100%);margin:0 auto;padding:12px}
+  h1{font-size:20px;margin:0 0 10px;font-weight:800}
+  .section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px;
+    margin-bottom:10px;
+  }
+  .section-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .section-title{font-size:14px;font-weight:800}
+  .clear{
+    border:1px solid var(--line);
+    background:transparent;
+    color:var(--muted);
+    border-radius:7px;
+    padding:4px 8px;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+    gap:6px;
+  }
+  button.choice{
+    appearance:none;
+    width:100%;
+    min-height:42px;
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--panel2);
+    color:var(--text);
+    font-size:13px;
+    line-height:1.25;
+    font-weight:650;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  button.choice:hover{border-color:#596171}
+  button.choice.selected{
+    background:var(--selected);
+    border-color:var(--accent);
+    color:#fff7e5;
+  }
+  button.choice.disabled{
+    opacity:.34;
+    cursor:not-allowed;
+  }
+  .event-grid{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}
+  .result{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px;
+    position:sticky;
+    bottom:8px;
+    box-shadow:0 8px 30px rgba(0,0,0,.28);
+  }
+  .result-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .result-title{font-size:14px;font-weight:850}
+  .count{font-size:12px;color:var(--muted)}
+  .targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:7px}
+  .target{
+    border:1px solid var(--line);
+    border-radius:9px;
+    padding:10px;
+    background:var(--panel2);
+    font-size:15px;
+    font-weight:800;
+    text-align:center;
+  }
+  .target.possible{
+    border-color:#a8872f;
+    background:#20242c;
+  }
+  .target.confirmed{
+    border-color:#4f9a68;
+    background:#193022;
+    box-shadow:inset 0 0 0 1px rgba(79,154,104,.18);
+  }
+  .empty{
+    color:var(--muted);
+    text-align:center;
+    padding:14px 8px;
+    font-size:13px;
+    border:1px dashed var(--line);
+    border-radius:8px;
+  }
+  .hint{
+    color:var(--muted);
+    font-size:11px;
+    line-height:1.5;
+    margin-top:8px;
+  }
+  @media (max-width:600px){
+    .wrap{padding:8px}
+    h1{font-size:18px}
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .targets{grid-template-columns:1fr 1fr}
+    button.choice{min-height:46px;font-size:12px}
+    .target{font-size:14px;padding:11px 6px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>深き夜・標的判定</h1>
+
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">1日目の夜ボス</div>
+      <button class="clear" data-clear="day1">選択解除</button>
+    </div>
+    <div id="day1" class="grid"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">2日目の夜ボス</div>
+      <button class="clear" data-clear="day2">選択解除</button>
+    </div>
+    <div id="day2" class="grid"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div class="section-title">襲撃・発生イベント</div>
+      <button class="clear" data-clear="event">選択解除</button>
+    </div>
+    <div id="event" class="grid event-grid"></div>
+    <div class="hint">イベントは必ず発生するものではありません。未選択のままでも判定できます。</div>
+  </section>
+
+  <section class="result">
+    <div class="result-head">
+      <div class="result-title">標的候補</div>
+      <div id="count" class="count"></div>
+    </div>
+    <div id="targets" class="targets"></div>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+/*
+ * 神攻略wiki「夜の王」の組み合わせ・逆引きテーブル、および
+ * ユーザー提供の「1日目の夜ボス × 襲撃/発生イベント」表を基にしたデータ。
+ * DLC導入済みを前提とする。
+ *
+ * ナメレスの特殊ルール：
+ *  - 襲撃イベントではナメレスの可能性を残す
+ *  - 発生イベントではナメレスの可能性を除外
+ *  - 1日目/2日目の通常ボス組み合わせ表はナメレスには適用しない
+ */
+
+const TARGETS = [
+  "グラディウス",
+  "エデレ",
+  "グノスター",
+  "マリス",
+  "リブラ",
+  "フルゴール",
+  "カリゴ",
+  "ナメレス"
+];
+
+const DAY1_BOSSES = [
+  "亜人の女王＆亜人の剣聖",
+  "鈴玉狩り",
+  "貪食ドラゴン",
+  "ミミズ顔",
+  "夜の騎兵×2",
+  "英雄のガーゴイル",
+  "公のフレイディア",
+  "戦場の宿将",
+  "百足のデーモン",
+  "熔鉄デーモン",
+  "ティビアの呼び舟",
+  "爛れた樹霊",
+  "接ぎ木の君主",
+  "王族の幽鬼"
+];
+
+const DAY2_BOSSES = [
+  "ツリーガード＆王都の騎兵",
+  "忌み鬼",
+  "古竜",
+  "坩堝の騎士＆黄金カバ",
+  "ノクスの竜人兵",
+  "竜のツリーガード＆王都の騎兵",
+  "大土竜",
+  "僻地の宿将",
+  "無名の王",
+  "神肌の貴種＆神肌の使徒",
+  "降る星の成獣",
+  "死儀礼の鳥",
+  "冷たい谷の踊り子"
+];
+
+const EVENTS = [
+  {id:"raid_忌み鬼", type:"raid", name:"忌み鬼"},
+  {id:"raid_知性の蟲", type:"raid", name:"知性の蟲"},
+  {id:"raid_兆し", type:"raid", name:"兆し"},
+  {id:"raid_調律の魔物", type:"raid", name:"調律の魔物"},
+  {id:"event_夜の勢力", type:"event", name:"夜の勢力"},
+  {id:"event_狂い火", type:"event", name:"狂い火"},
+  {id:"event_古の魔術師塔", type:"event", name:"古の魔術師塔"},
+  {id:"event_隕石", type:"event", name:"隕石"},
+  {id:"event_歩く霊廟", type:"event", name:"歩く霊廟"},
+  {id:"event_新たなる脅威", type:"event", name:"新たなる脅威"}
+];
+
+/* 1日目の夜ボスごとのイベント結果 */
+const EVENT_TABLE = {
+  "亜人の女王＆亜人の剣聖":{
+    "忌み鬼":[], "知性の蟲":[], "兆し":[], "調律の魔物":[],
+    "夜の勢力":["グラディウス"], "狂い火":[], "古の魔術師塔":[],
+    "隕石":[], "歩く霊廟":["グラディウス"], "新たなる脅威":[]
+  },
+  "鈴玉狩り":{
+    "忌み鬼":[], "知性の蟲":[], "兆し":[], "調律の魔物":[],
+    "夜の勢力":["グラディウス"], "狂い火":[], "古の魔術師塔":[],
+    "隕石":[], "歩く霊廟":["グラディウス"], "新たなる脅威":[]
+  },
+  "貪食ドラゴン":{
+    "忌み鬼":["エデレ"], "知性の蟲":["マリス"], "兆し":[], "調律の魔物":["フルゴール"],
+    "夜の勢力":["マリス","フルゴール"], "狂い火":[], "古の魔術師塔":[],
+    "隕石":["エデレ"], "歩く霊廟":["マリス"], "新たなる脅威":["エデレ","フルゴール"]
+  },
+  "ミミズ顔":{
+    "忌み鬼":["エデレ"], "知性の蟲":["マリス"], "兆し":[], "調律の魔物":["フルゴール"],
+    "夜の勢力":["マリス","フルゴール"], "狂い火":[], "古の魔術師塔":[],
+    "隕石":["エデレ"], "歩く霊廟":["マリス"], "新たなる脅威":["エデレ","フルゴール"]
+  },
+  "夜の騎兵×2":{
+    "忌み鬼":["エデレ"], "知性の蟲":[], "兆し":[], "調律の魔物":["フルゴール"],
+    "夜の勢力":["フルゴール"], "狂い火":[], "古の魔術師塔":[],
+    "隕石":["エデレ"], "歩く霊廟":[], "新たなる脅威":["エデレ","フルゴール"]
+  },
+  "英雄のガーゴイル":{
+    "忌み鬼":["エデレ"], "知性の蟲":["マリス"], "兆し":[], "調律の魔物":[],
+    "夜の勢力":["マリス"], "狂い火":[], "古の魔術師塔":[],
+    "隕石":["エデレ"], "歩く霊廟":["マリス"], "新たなる脅威":["エデレ"]
+  },
+  "公のフレイディア":{
+    "忌み鬼":["エデレ"], "知性の蟲":["リブラ"], "兆し":["カリゴ"], "調律の魔物":["カリゴ"],
+    "夜の勢力":[], "狂い火":["リブラ"], "古の魔術師塔":["リブラ"],
+    "隕石":["エデレ","カリゴ"], "歩く霊廟":["カリゴ"], "新たなる脅威":["エデレ"]
+  },
+  "戦場の宿将":{
+    "忌み鬼":["グノスター"], "知性の蟲":["リブラ"], "兆し":[], "調律の魔物":[],
+    "夜の勢力":[], "狂い火":["グノスター","リブラ"], "古の魔術師塔":["グノスター","リブラ"],
+    "隕石":[], "歩く霊廟":[], "新たなる脅威":[]
+  },
+  "百足のデーモン":{
+    "忌み鬼":["グノスター"], "知性の蟲":["リブラ"], "兆し":[], "調律の魔物":["フルゴール"],
+    "夜の勢力":["フルゴール"], "狂い火":["グノスター","リブラ"], "古の魔術師塔":["グノスター","リブラ"],
+    "隕石":[], "歩く霊廟":[], "新たなる脅威":["フルゴール"]
+  },
+  "熔鉄デーモン":{
+    "忌み鬼":["グノスター"], "知性の蟲":["マリス"], "兆し":["カリゴ","グノスター"], "調律の魔物":["カリゴ"],
+    "夜の勢力":["マリス"], "狂い火":["グノスター"], "古の魔術師塔":["グノスター"],
+    "隕石":["カリゴ"], "歩く霊廟":["マリス","カリゴ"], "新たなる脅威":[]
+  },
+  "ティビアの呼び舟":{
+    "忌み鬼":["グノスター"], "知性の蟲":["リブラ"], "兆し":["カリゴ"], "調律の魔物":["カリゴ"],
+    "夜の勢力":[], "狂い火":["グノスター","リブラ"], "古の魔術師塔":["グノスター","リブラ"],
+    "隕石":["カリゴ"], "歩く霊廟":["カリゴ"], "新たなる脅威":[]
+  },
+  "爛れた樹霊":{
+    "忌み鬼":["グノスター"], "知性の蟲":[], "兆し":["カリゴ"], "調律の魔物":["カリゴ"],
+    "夜の勢力":[], "狂い火":["グノスター"], "古の魔術師塔":["グノスター"],
+    "隕石":["カリゴ"], "歩く霊廟":["カリゴ"], "新たなる脅威":[]
+  },
+  "接ぎ木の君主":{
+    "忌み鬼":[], "知性の蟲":["マリス"], "兆し":["カリゴ"], "調律の魔物":["カリゴ"],
+    "夜の勢力":["マリス"], "狂い火":[], "古の魔術師塔":[],
+    "隕石":["カリゴ"], "歩く霊廟":["マリス","カリゴ"], "新たなる脅威":[]
+  },
+  "王族の幽鬼":{
+    "忌み鬼":[], "知性の蟲":["リブラ"], "兆し":[], "調律の魔物":["フルゴール"],
+    "夜の勢力":["フルゴール"], "狂い火":["リブラ"], "古の魔術師塔":["リブラ"],
+    "隕石":[], "歩く霊廟":[], "新たなる脅威":["フルゴール"]
+  }
+};
+
+/*
+ * 1日目・2日目の夜ボス組み合わせ（DLC導入済み）。
+ * ナメレスは特殊扱いのためここには入れない。
+ */
+const DAY1_BY_TARGET = {
+  "グラディウス":["亜人の女王＆亜人の剣聖","鈴玉狩り"],
+  "エデレ":["貪食ドラゴン","ミミズ顔","夜の騎兵×2","英雄のガーゴイル","公のフレイディア"],
+  "グノスター":["戦場の宿将","百足のデーモン","熔鉄デーモン","ティビアの呼び舟","爛れた樹霊"],
+  "マリス":["貪食ドラゴン","ミミズ顔","熔鉄デーモン","英雄のガーゴイル","接ぎ木の君主"],
+  "リブラ":["公のフレイディア","戦場の宿将","百足のデーモン","ティビアの呼び舟","王族の幽鬼"],
+  "フルゴール":["貪食ドラゴン","ミミズ顔","夜の騎兵×2","百足のデーモン","王族の幽鬼"],
+  "カリゴ":["公のフレイディア","熔鉄デーモン","ティビアの呼び舟","爛れた樹霊","接ぎ木の君主"]
+};
+
+const DAY2_BY_TARGET = {
+  "グラディウス":["ツリーガード＆王都の騎兵","忌み鬼"],
+  "エデレ":["古竜","坩堝の騎士＆黄金カバ"],
+  "グノスター":["ノクスの竜人兵","竜のツリーガード＆王都の騎兵","大土竜"],
+  "マリス":["ツリーガード＆王都の騎兵","神肌の貴種＆神肌の使徒","降る星の成獣"],
+  "リブラ":["坩堝の騎士＆黄金カバ","死儀礼の鳥","神肌の貴種＆神肌の使徒"],
+  "フルゴール":["ノクスの竜人兵","無名の王","僻地の宿将"],
+  "カリゴ":["竜のツリーガード＆王都の騎兵","冷たい谷の踊り子"]
+};
+
+const state = {
+  day1:null,
+  day2:null,
+  event:null
+};
+
+function makeButtons(containerId, items, group, formatter){
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  items.forEach(item=>{
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "choice";
+    button.textContent = formatter ? formatter(item) : item;
+    button.dataset.value = (typeof item === "object" && item !== null) ? item.id : item;
+    button.addEventListener("click", ()=>{
+      const value = (typeof item === "object" && item !== null) ? item.id : item;
+      state[group] = (state[group] === value) ? null : value;
+      render();
+    });
+    container.appendChild(button);
+  });
+}
+
+function selectedEvent(){
+  return EVENTS.find(e=>e.id === state.event) || null;
+}
+
+function getCandidates(){
+  let candidates = new Set(TARGETS);
+
+  // 1日目の夜ボス
+  if(state.day1){
+    const byDay1 = new Set(["ナメレス"]);
+    for(const target of Object.keys(DAY1_BY_TARGET)){
+      if(DAY1_BY_TARGET[target].includes(state.day1)) byDay1.add(target);
+    }
+    candidates = intersect(candidates, byDay1);
+  }
+
+  // 2日目の夜ボス
+  // ナメレスには2日目の組み合わせ表を適用しない。
+  if(state.day2){
+    const byDay2 = new Set(["ナメレス"]);
+    for(const target of Object.keys(DAY2_BY_TARGET)){
+      if(DAY2_BY_TARGET[target].includes(state.day2)) byDay2.add(target);
+    }
+    candidates = intersect(candidates, byDay2);
+  }
+
+  // 襲撃・発生イベント
+  const ev = selectedEvent();
+  if(ev){
+    if(state.day1){
+      const possible = new Set(
+        (EVENT_TABLE[state.day1] && EVENT_TABLE[state.day1][ev.name]) || []
+      );
+
+      if(ev.type === "raid"){
+        // 襲撃が起きてもナメレスの可能性は常に残る
+        possible.add("ナメレス");
+      }
+      // 発生イベントではナメレスを追加しない
+      candidates = intersect(candidates, possible);
+    } else {
+      // 1日目が未選択でも、イベント単独で候補を出す
+      let possible = new Set();
+      for(const boss of DAY1_BOSSES){
+        const arr = (EVENT_TABLE[boss] && EVENT_TABLE[boss][ev.name]) || [];
+        arr.forEach(t=>possible.add(t));
+      }
+      if(ev.type === "raid") possible.add("ナメレス");
+      candidates = intersect(candidates, possible);
+    }
+  }
+
+  return [...candidates];
+}
+
+function intersect(a,b){
+  return new Set([...a].filter(x=>b.has(x)));
+}
+
+function render(){
+  // selected state
+  document.querySelectorAll(".choice").forEach(btn=>{
+    const group = btn.closest("#day1,#day2,#event")?.id;
+    let selected = false;
+    if(group === "day1") selected = state.day1 === btn.dataset.value;
+    if(group === "day2") selected = state.day2 === btn.dataset.value;
+    if(group === "event") selected = state.event === btn.dataset.value;
+    btn.classList.toggle("selected", selected);
+  });
+
+  // Event buttons show the official names.
+  // No event is forced; all remain available.
+  const candidates = getCandidates();
+  const targetBox = document.getElementById("targets");
+  const count = document.getElementById("count");
+  count.textContent = `${candidates.length}件`;
+
+  targetBox.innerHTML = "";
+  if(candidates.length === 0){
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "該当する標的候補なし";
+    targetBox.appendChild(empty);
+  }else{
+    candidates.forEach(target=>{
+      const div = document.createElement("div");
+      // 候補が1体だけになった時点で確定（緑）、
+      // 複数候補が残っている間は未確定（黄）。
+      div.className = "target " + (candidates.length === 1 ? "confirmed" : "possible");
+      div.textContent = target;
+      targetBox.appendChild(div);
+    });
+  }
+}
+
+// clear buttons
+document.querySelectorAll("[data-clear]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const group = btn.dataset.clear;
+    state[group] = null;
+    render();
+  });
+});
+
+makeButtons("day1", DAY1_BOSSES, "day1");
+makeButtons("day2", DAY2_BOSSES, "day2");
+makeButtons("event", EVENTS, "event", e=>e.name);
+render();
+</script>
+</body>
+</html>
